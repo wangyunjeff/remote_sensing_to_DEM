@@ -3,14 +3,16 @@ from tqdm import tqdm
 
 from torch.utils.tensorboard import SummaryWriter
 
+from utils.utils import save_checkpoint
+import config.config as config
 # from utils.model_training import CE_Loss, Dice_loss
 # from utils.utils import get_lr
 # from utils.utils_metrics import f_score
 
-def do_train(model, gen_train, gen_val, optimizer, loss_function, cuda, epoch, tensorboard:SummaryWriter):
+def do_train(model, gen_train, gen_val, optimizer, loss_function,  epoch, tensorboard:SummaryWriter):
     total_loss = 0
     total_f_score = 0
-
+    print('model_device:', next(model.parameters()).is_cuda)
     val_loss = 0
     val_f_score = 0
     model.train()
@@ -21,9 +23,9 @@ def do_train(model, gen_train, gen_val, optimizer, loss_function, cuda, epoch, t
         with torch.no_grad():
             imgs = imgs.float()
             labels = labels.float()
-        if cuda:
-            imgs = imgs.cuda()
-            labels = labels.cuda()
+        if config.CUDA:
+            imgs = imgs.to(config.DEVICE)
+            labels = labels.to(config.DEVICE)
         optimizer.zero_grad()
         outputs = model(imgs)
         loss = loss_function(outputs, labels)
@@ -48,9 +50,9 @@ def do_train(model, gen_train, gen_val, optimizer, loss_function, cuda, epoch, t
         with torch.no_grad():
             imgs = imgs.float()
             labels = labels.float()
-            if cuda:
-                imgs = imgs.cuda()
-                labels = labels.cuda()
+            if config.CUDA:
+                imgs = imgs.to(config.DEVICE)
+                labels = labels.to(config.DEVICE)
 
             outputs = model(imgs)
             loss = loss_function(outputs, labels)
@@ -64,6 +66,7 @@ def do_train(model, gen_train, gen_val, optimizer, loss_function, cuda, epoch, t
     tensorboard.add_scalars("loss",
                             {'valing loss': val_loss},
                             epoch)
+
 # def do_train(model, loss_history, optimizer, epoch, epoch_step, epoch_step_val, gen, gen_val, Epoch,
 #              cuda, dice_loss, num_classes):
 #
