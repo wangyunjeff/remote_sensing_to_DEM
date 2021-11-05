@@ -9,63 +9,69 @@ import config.config as config
 # from utils.utils import get_lr
 # from utils.utils_metrics import f_score
 
-def do_train(model, gen_train, gen_val, optimizer, loss_function,  epoch, tensorboard:SummaryWriter):
-    total_loss = 0
+def train_loop(model, gen_train, gen_val, optimizer, loss_function,  epoch, tensorboard:SummaryWriter):
+    scaler = torch.cuda.amp.GradScaler()
+    loop = tqdm(gen_train)
+
+    training_loss = 0
     total_f_score = 0
-    print('model_device:', next(model.parameters()).is_cuda)
     val_loss = 0
     val_f_score = 0
     model.train()
     print('Start Train')
-    for iteration, batch in enumerate(gen_train):
+    for iteration, batch in enumerate(loop):
         # imgs, pngs, labels = batch
         imgs, labels = batch
+
         with torch.no_grad():
             imgs = imgs.float()
             labels = labels.float()
-        if config.CUDA:
-            imgs = imgs.to(config.DEVICE)
-            labels = labels.to(config.DEVICE)
-        optimizer.zero_grad()
-        outputs = model(imgs)
-        loss = loss_function(outputs, labels)
-
-        # with torch.no_grad():
-        #     # -------------------------------#
-        #     #   计算f_score
-        #     # -------------------------------#
-        #     _f_score = f_score(outputs, labels)
-        loss.backward()
-        optimizer.step()
-
-        total_loss += loss.item()
-        # total_f_score += _f_score.item()
-    tensorboard.add_scalars("loss",
-                            {'training loss': total_loss},
-                            epoch)
-    model.eval()
-    print('Start Validation')
-    for iteration, batch in enumerate(gen_val):
-        imgs, labels = batch
-        with torch.no_grad():
-            imgs = imgs.float()
-            labels = labels.float()
-            if config.CUDA:
-                imgs = imgs.to(config.DEVICE)
-                labels = labels.to(config.DEVICE)
-
+        imgs = imgs.to(config.DEVICE)
+        labels = labels.to(config.DEVICE)
+        with torch.cuda.amp.autocast():
+            optimizer.zero_grad()
             outputs = model(imgs)
             loss = loss_function(outputs, labels)
-            # -------------------------------#
-            #   计算f_score
-            # -------------------------------#
-            # _f_score = f_score(outputs, labels)
 
-            val_loss += loss.item()
-            # val_f_score += _f_score.item()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
+
+        training_loss += loss.item()
+        # total_f_score += _f_score.item()
+        if iteration % 5 == 0:
+            loop.set_postfix(
+                epoch=epoch,
+                training_loss=loss
+            )
     tensorboard.add_scalars("loss",
-                            {'valing loss': val_loss},
+                            {'training loss': training_loss},
                             epoch)
+
+    # model.eval()
+    # print('Start Validation')
+    # for iteration, batch in enumerate(gen_val):
+    #     imgs, labels = batch
+    #     with torch.no_grad():
+    #         imgs = imgs.float()
+    #         labels = labels.float()
+    #         if config.CUDA:
+    #             imgs = imgs.to(config.DEVICE)
+    #             labels = labels.to(config.DEVICE)
+    #
+    #         outputs = model(imgs)
+    #         loss = loss_function(outputs, labels)
+    #         # -------------------------------#
+    #         #   计算f_score
+    #         # -------------------------------#
+    #         # _f_score = f_score(outputs, labels)
+    #
+    #         val_loss += loss.item()
+    #         # val_f_score += _f_score.item()
+    #
+    # tensorboard.add_scalars("loss",
+    #                         {'valing loss': val_loss},
+    #                         epoch)
 
 # def do_train(model, loss_history, optimizer, epoch, epoch_step, epoch_step_val, gen, gen_val, Epoch,
 #              cuda, dice_loss, num_classes):
